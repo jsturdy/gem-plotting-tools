@@ -1,5 +1,6 @@
 # Ignore everything
 *
+
 # Don't ignore git settings
 !*.gitignore
 !*.gitattributes
@@ -7,6 +8,10 @@
 # Don't ignore special files
 !*.md
 !*.rst
+!*.in
+
+# Don't ignore makefiles
+!Makefile
 
 # Don't ignore subdirectories
 !*/
