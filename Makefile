@@ -14,6 +14,13 @@ PackageName  := $(Namespace)_$(ShortPackage)
 PackageDir   := pkg/$(Namespace)/$(ShortPackage)
 ScriptDir    := pkg/$(Namespace)/scripts
 ManDir       := pkg/man
+INSTALL_PATH=/opt/$(Namespace)
+
+ProjectPath:=$(BUILD_HOME)/$(Project)
+ConfigDir:=$(ProjectPath)/config
+
+include $(ConfigDir)/mfCommonDefs.mk
+include $(ConfigDir)/mfPythonDefs.mk
 
 # Explicitly define the modules that are being exported (for PEP420 compliance)
 PythonModules = ["$(Namespace).$(ShortPackage)", \
@@ -24,17 +31,18 @@ PythonModules = ["$(Namespace).$(ShortPackage)", \
 ]
 $(info PythonModules=${PythonModules})
 
-GEMPLOTTING_VER_MAJOR:=$(shell ./config/tag2rel.sh | awk '{split($$0,a," "); print a[1];}' | awk '{split($$0,b,":"); print b[2];}')
-GEMPLOTTING_VER_MINOR:=$(shell ./config/tag2rel.sh | awk '{split($$0,a," "); print a[2];}' | awk '{split($$0,b,":"); print b[2];}')
-GEMPLOTTING_VER_PATCH:=$(shell ./config/tag2rel.sh | awk '{split($$0,a," "); print a[3];}' | awk '{split($$0,b,":"); print b[2];}')
+GEMPLOTTING_VER_MAJOR:=$(shell $(ConfigDir)/tag2rel.sh | awk '{split($$0,a," "); print a[1];}' | awk '{split($$0,b,":"); print b[2];}')
+GEMPLOTTING_VER_MINOR:=$(shell $(ConfigDir)/tag2rel.sh | awk '{split($$0,a," "); print a[2];}' | awk '{split($$0,b,":"); print b[2];}')
+GEMPLOTTING_VER_PATCH:=$(shell $(ConfigDir)/tag2rel.sh | awk '{split($$0,a," "); print a[3];}' | awk '{split($$0,b,":"); print b[2];}')
 
-include $(BUILD_HOME)/$(Project)/config/mfCommonDefs.mk
-include $(BUILD_HOME)/$(Project)/config/mfPythonDefs.mk
+include $(ConfigDir)/mfSphinx.mk
+include $(ConfigDir)/mfPythonRPM.mk
 
-# include $(BUILD_HOME)/$(Project)/config/mfDefs.mk
-
-include $(BUILD_HOME)/$(Project)/config/mfSphinx.mk
-include $(BUILD_HOME)/$(Project)/config/mfPythonRPM.mk
+PythonSources=$(wildcard ana*.py)
+PythonSources+=$(wildcard utils/*.py)
+PythonSources+=$(wildcard fitting/*.py)
+PythonSources+=$(wildcard macros/*.py)
+PythonSources+=$(wildcard mapping/*.py)
 
 default:
 	$(MakeDir) $(PackageDir)
@@ -42,12 +50,12 @@ default:
 	@echo "__path__ = __import__('pkgutil').extend_path(__path__, __name__)" > pkg/$(Namespace)/__init__.py
 	@cp -rf __init__.py $(PackageDir)
 
-# need to ensure that the python only stuff is packaged into RPMs
-.PHONY: clean preprpm
-_rpmprep: preprpm
-preprpm: default man
+# Override, as this package uses pkg/setup.py as the template file
+$(PackageSetupFile): pkg/setup.py
+$(PackagePrepFile): $(PythonSources) Makefile | default man
 	@if ! [ -e pkg/installrpm.sh ]; then \
-		cp -rf config/scriptlets/installrpm.sh pkg/; \
+	    cp -rf config/scriptlets/installrpm.sh pkg/; \
+	    perl -pi -e "s|__PYTHON_SCRIPT_PATH__|$(INSTALL_PATH)/bin/$(ShortPackage)|g" pkg/installrpm.sh; \
 	fi
 	$(MakeDir) $(ScriptDir)
 	@cp -rf anaUltra*.py $(ScriptDir)
@@ -63,6 +71,7 @@ preprpm: default man
 	gzip $(ManDir)/*
 	-cp -rf README.md LICENSE CHANGELOG.md MANIFEST.in requirements.txt $(PackageDir)
 	-cp -rf README.md LICENSE CHANGELOG.md MANIFEST.in requirements.txt pkg
+	touch $@
 
 clean:
 	-rm -rf $(ScriptDir)
